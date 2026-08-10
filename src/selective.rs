@@ -102,10 +102,19 @@
 use crate::ast::MarkdownNode;
 use crate::ast::heading::Heading;
 use crate::document::Document;
+use crate::location::Location;
 use crate::node::Node;
 use crate::parser::{ParseError, Parser};
 use crate::tree::Tree;
 use rustc_hash::FxHashSet;
+use std::cell::Cell;
+use std::sync::OnceLock;
+
+fn source_line_range(node: &Node, source: &str, line_starts: &OnceLock<Vec<u32>>) -> (u64, u64) {
+    let starts = line_starts.get_or_init(|| Location::build_line_starts(source));
+    let line_at = |offset: u32| starts.partition_point(|&start| start <= offset) as u64;
+    (line_at(node.span.start), line_at(node.span.end))
+}
 
 /// Controls whether a visitor continues or stops.
 ///
@@ -135,6 +144,9 @@ pub enum BlockScanStatus {
 pub struct TopLevelBlockEvent<'event> {
     pub(crate) node_id: usize,
     pub(crate) tree: &'event Tree<Node>,
+    pub(crate) source: &'event str,
+    pub(crate) line_starts: &'event OnceLock<Vec<u32>>,
+    pub(crate) lines: Cell<Option<(u64, u64)>>,
 }
 
 impl<'event> TopLevelBlockEvent<'event> {
@@ -149,6 +161,128 @@ impl<'event> TopLevelBlockEvent<'event> {
     /// Returns the current block tree view.
     pub fn tree(&self) -> &'event Tree<Node> {
         self.tree
+    }
+    /// Returns the one-based line containing the block's inclusive start offset.
+    ///
+    /// The event computes and caches its line range on the first line lookup.
+    pub fn start_line(&self) -> u64 {
+        self.lines().0
+    }
+    /// Returns the one-based line containing the block's exclusive end offset.
+    ///
+    /// This is the line component of `node().span.end`, matching
+    /// [`Document::location_at`]. The event computes and caches its line range
+    /// on the first line lookup.
+    pub fn end_line(&self) -> u64 {
+        self.lines().1
+    }
+
+    /// Iterates over all nested block nodes in pre-order, excluding this block.
+    ///
+    /// The returned blocks are part of the already-finalized subtree. Iterating
+    /// them does not dispatch additional events and has no effect on
+    /// [`VisitControl`].
+    pub fn descendant_blocks(&self) -> DescendantBlocks<'event> {
+        DescendantBlocks {
+            tree: self.tree,
+            source: self.source,
+            line_starts: self.line_starts,
+            root_id: self.node_id,
+            next_id: self.tree.get_first_child(self.node_id),
+        }
+    }
+
+    fn lines(&self) -> (u64, u64) {
+        if let Some(lines) = self.lines.get() {
+            return lines;
+        }
+
+        let lines = source_line_range(self.node(), self.source, self.line_starts);
+        self.lines.set(Some(lines));
+        lines
+    }
+}
+
+/// A read-only block in a finalized top-level block subtree.
+pub struct BlockRef<'event> {
+    node_id: usize,
+    tree: &'event Tree<Node>,
+    source: &'event str,
+    line_starts: &'event OnceLock<Vec<u32>>,
+    lines: Cell<Option<(u64, u64)>>,
+}
+
+impl<'event> BlockRef<'event> {
+    /// Returns the block node ID for use during the callback.
+    pub fn node_id(&self) -> usize {
+        self.node_id
+    }
+
+    /// Returns the finalized block node.
+    pub fn node(&self) -> &'event Node {
+        &self.tree[self.node_id]
+    }
+
+    /// Returns the one-based line containing the block's inclusive start offset.
+    pub fn start_line(&self) -> u64 {
+        self.lines().0
+    }
+
+    /// Returns the one-based line containing the block's exclusive end offset.
+    pub fn end_line(&self) -> u64 {
+        self.lines().1
+    }
+
+    fn lines(&self) -> (u64, u64) {
+        if let Some(lines) = self.lines.get() {
+            return lines;
+        }
+
+        let lines = source_line_range(self.node(), self.source, self.line_starts);
+        self.lines.set(Some(lines));
+        lines
+    }
+}
+
+/// Pre-order iterator over the nested blocks beneath a top-level block.
+pub struct DescendantBlocks<'event> {
+    tree: &'event Tree<Node>,
+    source: &'event str,
+    line_starts: &'event OnceLock<Vec<u32>>,
+    root_id: usize,
+    next_id: Option<usize>,
+}
+
+impl<'event> Iterator for DescendantBlocks<'event> {
+    type Item = BlockRef<'event>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let node_id = self.next_id?;
+        debug_assert!(self.tree[node_id].body.is_block_level());
+
+        self.next_id = if let Some(child) = self.tree.get_first_child(node_id) {
+            Some(child)
+        } else {
+            let mut current = node_id;
+            loop {
+                if let Some(sibling) = self.tree.get_next(current) {
+                    break Some(sibling);
+                }
+                let parent = self.tree.get_parent(current);
+                if parent == self.root_id {
+                    break None;
+                }
+                current = parent;
+            }
+        };
+
+        Some(BlockRef {
+            node_id,
+            tree: self.tree,
+            source: self.source,
+            line_starts: self.line_starts,
+            lines: Cell::new(None),
+        })
     }
 }
 

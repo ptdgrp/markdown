@@ -170,6 +170,13 @@ For heading and OFM block-ID discovery, call `BlockDocument::prepare_semantics`
 before deciding which inline subtrees to materialize. See the crate-level Rustdoc
 and the `selective` module for the advanced selective parsing API.
 
+`Parser::parse_blocks_with` visits finalized top-level blocks. Each
+`TopLevelBlockEvent` exposes `start_line()` and `end_line()` as one-based source
+line numbers corresponding to the block node's half-open byte span. The line
+range is computed lazily on first access and then cached for that event.
+`TopLevelBlockEvent::descendant_blocks()` traverses the finalized nested block
+subtree in pre-order without dispatching additional events.
+
 ## Parsing a Block by Block ID
 
 Semantic preparation discovers OFM block IDs without materializing every inline

@@ -26,6 +26,7 @@ fn kind_name(node: &MarkdownNode) -> &'static str {
         MarkdownNode::BlockQuote => "blockquote",
         MarkdownNode::Code(_) => "code",
         MarkdownNode::List(_) => "list",
+        MarkdownNode::ListItem(_) => "listitem",
         _ => "other",
     }
 }
@@ -89,6 +90,113 @@ fn dispatches_only_document_direct_children() {
             "paragraph"
         ],
     );
+}
+
+#[test]
+fn block_events_expose_one_based_start_and_end_lines() {
+    let source = "# Title\n\nPara one\ncontinued\n\n> quote\n> more\n\n```\ncode\n```\n";
+    let mut lines = Vec::new();
+
+    Parser::new(source)
+        .parse_blocks_with(
+            |_| true,
+            |event| {
+                lines.push((
+                    kind_name(&event.node().body),
+                    event.start_line(),
+                    event.end_line(),
+                ));
+                VisitControl::Continue
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        lines,
+        [
+            ("heading", 1, 1),
+            ("paragraph", 3, 4),
+            ("blockquote", 6, 7),
+            ("code", 9, 11),
+        ]
+    );
+}
+
+#[test]
+fn block_event_lines_match_node_span_locations() {
+    let source = "---\ntitle: hello\n---\n\n# 标题\n\nbody\r\ncontinued";
+    let mut event_lines = Vec::new();
+    let document = Parser::new_with_options(source, ParserOptions::default().enabled_ofm())
+        .parse_blocks_with(
+            |_| true,
+            |event| {
+                event_lines.push((event.node().span, event.start_line(), event.end_line()));
+                VisitControl::Continue
+            },
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+
+    for (span, start_line, end_line) in event_lines {
+        assert_eq!(start_line, document.location_at(span.start as usize).line);
+        assert_eq!(end_line, document.location_at(span.end as usize).line);
+    }
+}
+
+#[test]
+fn block_event_line_range_can_be_read_end_first() {
+    let mut lines = Vec::new();
+    Parser::new("first\ncontinued\n\nsecond")
+        .parse_blocks_with(
+            |_| true,
+            |event| {
+                let end = event.end_line();
+                lines.push((event.start_line(), end));
+                VisitControl::Continue
+            },
+        )
+        .unwrap();
+
+    assert_eq!(lines, [(1, 2), (4, 4)]);
+}
+
+#[test]
+fn top_level_event_iterates_descendant_blocks_in_preorder() {
+    let source = "> outer\n> - item\n>   continuation\n";
+    let mut descendants = Vec::new();
+
+    let document = Parser::new(source)
+        .parse_blocks_with(
+            |_| true,
+            |event| {
+                descendants.extend(event.descendant_blocks().map(|block| {
+                    (
+                        block.node_id(),
+                        kind_name(&block.node().body),
+                        block.start_line(),
+                        block.end_line(),
+                    )
+                }));
+                VisitControl::Continue
+            },
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+
+    assert_eq!(
+        descendants
+            .iter()
+            .map(|(_, kind, _, _)| *kind)
+            .collect::<Vec<_>>(),
+        ["paragraph", "list", "listitem", "paragraph"]
+    );
+    for (node_id, _, start_line, end_line) in descendants {
+        let span = document.tree[node_id].span;
+        assert_eq!(start_line, document.location_at(span.start as usize).line);
+        assert_eq!(end_line, document.location_at(span.end as usize).line);
+    }
 }
 
 #[test]

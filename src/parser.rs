@@ -13,8 +13,10 @@ use crate::tree::Tree;
 use crate::{blocks, inlines};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::sync::OnceLock;
 
 /// Opaque state captured after parsing frontmatter.
 ///
@@ -218,6 +220,8 @@ pub struct Parser<'input> {
     pub(crate) last_offset: u32,
     pub(crate) all_closed: bool,
     pub(crate) tags: FxHashSet<String>,
+    /// Lazily built source line index, shared with block events and the final document.
+    pub(crate) line_starts: OnceLock<Vec<u32>>,
     pub(crate) html_stacks: VecDeque<(String, usize)>, // tag name, node idx
     /// 需要在 inline 结束后执行文本后处理（相邻 Text 合并/校正）的父节点集合
     pub(crate) text_postprocess_parents: FxHashSet<usize>,
@@ -280,6 +284,7 @@ impl<'input> Parser<'input> {
             footnotes: FxHashMap::default(),
             footnote_refs: FxHashMap::default(),
             tags: FxHashSet::default(),
+            line_starts: OnceLock::new(),
             tree,
             doc,
             curr_proc_node: doc,
@@ -492,7 +497,7 @@ impl<'input> Parser<'input> {
                 source: SourceText::Borrowed(self.scanner.source_str()),
                 tree: self.tree,
                 tags: self.tags,
-                line_starts: std::sync::OnceLock::new(),
+                line_starts: self.line_starts,
             },
             snapshot,
         ))
@@ -674,10 +679,14 @@ impl<'input> Parser<'input> {
             if matches!(self.tree[child].body, MarkdownNode::FrontMatter(_)) {
                 continue;
             }
+            let source = self.scanner.source_str();
             let control = {
                 let event = TopLevelBlockEvent {
                     node_id: child,
                     tree: &self.tree,
+                    source,
+                    line_starts: &self.line_starts,
+                    lines: Cell::new(None),
                 };
                 observer(&event)
             };
@@ -775,7 +784,7 @@ impl<'input> Parser<'input> {
             source: SourceText::Borrowed(self.scanner.source_str()),
             tree: self.tree,
             tags: self.tags,
-            line_starts: std::sync::OnceLock::new(),
+            line_starts: self.line_starts,
         }
     }
     fn ensure_limits(&self) -> Result<(), ParseError> {
