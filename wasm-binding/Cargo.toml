@@ -3,7 +3,7 @@ name = "markdown-binding"
 version = "1.1.4"
 edition = "2021"
 description = "markdown wasm binding"
-repository = "https://github.com/tonitrnel/markdown"
+repository = "https://github.com/ptdgrp/markdown"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
