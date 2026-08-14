@@ -2,7 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.1.0]
+## [Unreleased]
+
+empty
+
+## [1.1.4] - 2026-08-11
+
+### Added
+- Added lazy, one-based source line ranges to top-level block events.
+- Added pre-order traversal of finalized descendant blocks through `TopLevelBlockEvent::descendant_blocks()`.
+
+## [1.1.3] - 2026-08-06
+
+### Added
+- Added block-level parsing and rendering for fenced `$$` display math while preserving inline `$$...$$` text.
+
+### Fixed
+- Rejected unknown WebAssembly parser option fields instead of silently ignoring them.
+- Propagated WebAssembly serialization failures as JavaScript errors instead of discarding them.
+
+## [1.1.2] - 2026-08-04
+
+### Changed
+- Refined package and generated-artifact ignore rules for Rust and WebAssembly releases.
+
+## [1.1.1] - 2026-08-04
+
+### Changed
+- Added crates.io package metadata and tightened the published crate contents.
+- Migrated the playground and deployment workflow from npm to pnpm and refreshed the frontend toolchain.
+- Updated the WebAssembly publishing workflow to Rust 1.96 and `wasm-pack` 0.15.0.
+
+### Fixed
+- Removed the obsolete top-level-await Vite plugin from the playground configuration.
+
+## [1.1.0] - 2026-08-04
 
 ### Added
 - Added `Parser::parse_blocks()` and the inspectable `BlockDocument` result for parsing Block structure without eagerly materializing Inline nodes.
