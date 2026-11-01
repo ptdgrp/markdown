@@ -1,6 +1,6 @@
 [package]
 name = "ptdgrp-markdown"
-version = "1.1.4"
+version = "1.1.5"
 edition = "2024"
 description = "A high-performance Markdown AST parser with CommonMark, GFM, and OFM support."
 repository = "https://github.com/ptdgrp/markdown"

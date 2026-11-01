@@ -1,6 +1,6 @@
 [package]
 name = "markdown-binding"
-version = "1.1.4"
+version = "1.1.5"
 edition = "2021"
 description = "markdown wasm binding"
 repository = "https://github.com/ptdgrp/markdown"

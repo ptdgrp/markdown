@@ -676,7 +676,7 @@ checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
 
 [[package]]
 name = "markdown-binding"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "ptdgrp-markdown"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "colored",
  "criterion",

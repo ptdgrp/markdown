@@ -6,6 +6,11 @@ All notable changes to this project are documented in this file.
 
 empty
 
+## [1.1.5] - 2026-10-31
+
+### Fixed
+- Preserved commas and decimal points between digits during Chinese punctuation normalization, keeping values such as `28,245.51` intact.
+
 ## [1.1.4] - 2026-08-11
 
 ### Added
