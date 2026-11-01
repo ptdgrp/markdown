@@ -37,6 +37,15 @@ pub fn normalize_chi_punctuation(text: &str) -> Cow<'_, str> {
             continue;
         }
 
+        // 保留数字之间的小数点和分隔符。
+        if matches!(ch, ',' | '.')
+            && result.as_bytes().last().is_some_and(u8::is_ascii_digit)
+            && chars.peek().is_some_and(char::is_ascii_digit)
+        {
+            result.push(ch);
+            continue;
+        }
+
         // 在 CJK 上下文中，将半角标点替换为全角
         if in_cjk_context {
             if let Some(fullwidth) = halfwidth_to_fullwidth(ch) {
@@ -218,6 +227,24 @@ mod tests {
             normalize_chi_punctuation("她竟然對你說「喵」??!!").as_ref(),
             "她竟然對你說「喵」\u{FF1F}\u{FF01}"
         );
+    }
+
+    #[test]
+    fn preserve_numeric_separators_in_chi_context() {
+        for (input, expected) in [
+            ("金额28,245.51元,已支付.", "金额28,245.51元，已支付。"),
+            ("金额1,234,567.89.", "金额1,234,567.89。"),
+            ("数值-0.51和1.234,56!", "数值-0.51和1.234,56！"),
+            ("数量28,下一项245.结束", "数量28，下一项245。结束"),
+            ("中文,245和.51", "中文，245和。51"),
+            ("28,245.51", "28,245.51"),
+        ] {
+            assert_eq!(
+                normalize_chi_punctuation(input).as_ref(),
+                expected,
+                "{input}"
+            );
+        }
     }
 
     #[test]

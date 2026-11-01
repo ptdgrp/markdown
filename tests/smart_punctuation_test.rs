@@ -77,3 +77,28 @@ fn test_cjk_spacing_with_smart_punct() {
     let html = ast.to_html();
     assert_eq!(html, "<p>Hello 世界—test</p>");
 }
+
+#[test]
+fn test_chinese_punctuation_preserves_numeric_separators() {
+    for (input, expected) in [
+        (
+            "金额28,245.51元,已支付.",
+            "<p>金额 28,245.51 元，已支付。</p>",
+        ),
+        ("# 金额28,245.51元.", "<h1>金额 28,245.51 元。</h1>"),
+        (
+            "金额**28,245.51**元.",
+            "<p>金额<strong>28,245.51</strong>元。</p>",
+        ),
+    ] {
+        let ast = Parser::new_with_options(
+            input,
+            ParserOptions::default()
+                .enabled_cjk_autocorrect()
+                .enabled_normalize_chinese_punctuation(),
+        )
+        .parse()
+        .unwrap();
+        assert_eq!(ast.to_html(), expected, "{input}");
+    }
+}
